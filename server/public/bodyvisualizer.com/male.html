@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />
+	<title>Body Builder</title>
+	<link type="text/css" href="css/jquery-ui-1.8.16.custom.css" rel="stylesheet" />	
+	<link type="text/css" href="css/style.css" rel="stylesheet" />
+	
+	<script type="text/javascript" src="js/text_support.js"></script>
+	<script type="text/javascript" src="js/prototype.js"></script>
+	<script type="text/javascript" src="js/moz_matrix4x4.js"></script>
+	<script type="text/javascript" src="js/cameracontroller.js"></script>
+	<script type="text/javascript" src="js/model_viewer.js"></script>
+	<script type="text/javascript" src="js/mesh_loader.js"></script>
+	
+	<script type="text/javascript" src="js/jquery-1.6.2.min.js"></script>
+	<script type="text/javascript" src="js/jquery-ui-1.8.16.custom.min.js"></script>
+	<script type="text/javascript" src="js/jquery-timers.js"></script>
+	
+	<script type="text/javascript" src="js/sylvester.js"></script>
+	<script type="text/javascript" src="js/conditional_gaussian.js"></script>
+	<script type="text/javascript" src="js/body_sliders.js"></script>
+	<script>var $J = jQuery.noConflict();</script>
+	
+	<script>
+	
+	var show_instructions = function showInstructions(measurement_name) {
+		var description_text = '<p>' + measurement_descriptions[current_language][measurement_name] + '</p>';
+		if ((measurement_name != 'Age') && (measurement_name != 'Weight') && (measurement_name != 'Activity')) {
+			description_text = description_text + '<p>' + measurement_descriptions[current_language]['general_advice'] + '</p>';
+		}
+		$J('#popup_content').html('<h3>' + measurement_name + '</h3>\n' + description_text);
+		$J('#popup').show();
+	}
+	
+
+	function addElementFromTemplate(parent_element, template_element, strings_to_replace, replacements) {
+		template_html = replaceTextStrings($J(template_element).html(), strings_to_replace, replacements);
+		$J(parent_element).append(template_html);
+	}
+
+	function load_script(js_url)
+	{
+		var head = $$('head')[0];
+		var script = new Element('script', { type: 'text/javascript', src: js_url });
+		head.appendChild(script);
+	}
+
+//	var HandleDoubleClickFunction = function(measurement-slider, measurement_field_index) {
+//		return function() {
+//			if (measurement_status[measurement_field_index] == 'fixed') {
+//				updateMeasurementsAndModel(measurement_field_index, null)
+//			}
+//			return false;
+//		}
+//	}
+	
+	var refreshModel = function() {
+		try {
+			modelViewer.repaint();
+		} catch(e) {
+			try {
+				modelViewer.repaint();
+			} catch(e) {
+				modelViewer.repaint();
+			}
+		}
+	}
+
+
+	var units = 'english';
+	var set_conversion_factor = function() {
+		if (units == 'metric') {
+			conversion_factor = { 'weight' : 1.0, 'height' : 1.0 };
+		} else {
+			conversion_factor = { 'weight' : 2.2, 'height' : 1.0/2.54 };
+		}
+	}
+	set_conversion_factor();	
+	
+	var set_units = function(new_units) {
+		if (units != new_units) { toggle_units(); }
+	}
+	
+	var toggle_units = function() {
+		var unit_divs = $J('.slider-units');
+		if (units == 'metric') {
+			units = 'english';
+			for (var i = 0; i < unit_divs.length; i++) {
+				var content = $J(unit_divs[i]).html();
+				$J(unit_divs[i]).html(content.replace('kilograms', 'pounds').replace('centimeters', 'inches'));
+			}
+		} else {
+			units = 'metric';
+			for (var i = 0; i < unit_divs.length; i++) {
+				var content = $J(unit_divs[i]).html();
+				$J(unit_divs[i]).html(content.replace('pounds', 'kilograms').replace('inches', 'centimeters'));
+			}
+		}
+		set_conversion_factor();
+		for (var i = 0; i < measurement_sliders.length; i++) {
+			var slider_value = measurement_sliders[i].slider( "value" );
+			setSliderValueField(slider_value, measurement_value_fields[i], measurement_names[i]);
+		}
+	};
+	var diff = 5;
+	var update_in_progress = false;
+	var updateMeasurementsAndModel = function(measurement_field_index, value, animate, callback) {
+		if (! update_in_progress) {
+			update_in_progress = true;
+			old_scale_factors = scale_factors;
+			scale_factors = Array(number_of_sliders);
+			if (value == null) {
+				conditional_multivariate_gaussian.uncondition_on_indices([measurement_field_index]);
+				mark_slider_as_unfixed(measurement_field_index);
+			} else {
+				conditional_multivariate_gaussian.condition_on_indices([measurement_field_index], [value]);
+				mark_slider_as_fixed(measurement_field_index);
+			}
+			for (var i = 0; i < number_of_sliders; i++) {
+				var value = conditional_multivariate_gaussian.all_values[i];
+				if (measurement_names[i] == 'weight') {
+					var slider_value = Math.pow(value, 3);
+				} else if (measurement_names[i] == 'exercise' ) {
+					var slider_value = value;
+				} else if (measurement_names[i] == 'age' ) {
+					var slider_value = value;
+				} else {
+					var slider_value = value/10.0;
+				}				
+				measurement_sliders[i].slider( "value", slider_value );
+				scale_factors[i] = (value - mu[i])/diff;
+			}
+			
+			
+			if (animate) {
+				var number_of_increments = 8;
+				var update_model_function = function(number_of_increments, start_values, end_values, callback) {
+					return function(inc) {
+						for (var i = 0; i < end_values.length; i++) {
+							model_loader.current_model.setScalefactor(i, start_values[i] + (inc/number_of_increments)*(end_values[i] - start_values[i]) );
+						}
+						refreshModel();
+						if ((inc == number_of_increments) && callback) { callback(); }
+					}
+				}(number_of_increments, old_scale_factors, scale_factors, callback);
+				update_in_progress = false;
+				$J(document).everyTime(30, update_model_function, number_of_increments);
+			} else {
+				for (var i = 0; i < number_of_sliders; i++) { model_loader.current_model.setScalefactor(i, scale_factors[i]); }
+				update_in_progress = false;
+				refreshModel();
+			}
+		}
+	}
+	
+	var reset_all_sliders_function = function(next_slider_to_reset) {
+		return function() { return reset_all_sliders(next_slider_to_reset); }
+	}
+	
+	function reset_all_sliders(next_slider_to_reset) {
+		next_slider_to_reset = (next_slider_to_reset != undefined) ? next_slider_to_reset : (number_of_sliders - 1);
+		if ((next_slider_to_reset < number_of_sliders) && (next_slider_to_reset >= 0)) {
+			var callback = reset_all_sliders_function(next_slider_to_reset - 1);
+			if (measurement_status[next_slider_to_reset] == 'fixed') {
+				updateMeasurementsAndModel(next_slider_to_reset, null, true, callback);
+			} else {
+				callback();
+			}
+		}
+		return false;
+	}
+	
+	function mark_slider_as_fixed(slider_index) {
+		measurement_status[slider_index] = 'fixed';
+		measurement_value_fields[slider_index].addClass('fixed');
+		measurement_sliders[slider_index].addClass('fixed');
+		
+		measurement_status_fields[slider_index].addClass('fixed');
+		js_string = 'updateMeasurementsAndModel(' + slider_index + ', null, true); return false;'
+		link_html = (current_language == 'english') ? ('SET <a href="#" onClick="' + js_string + '">(click to reset)</a>') : ('SETZEN <a href="#" onClick="' + js_string + '">(zur\374cksetzen)</a>');
+		measurement_status_fields[slider_index].html(link_html);
+		update_reset_button();
+	}
+	function mark_slider_as_unfixed(slider_index) {
+		measurement_status[slider_index] = 'predicted';
+		measurement_value_fields[slider_index].removeClass('fixed');
+		measurement_sliders[slider_index].removeClass('fixed');
+		
+		measurement_status_fields[slider_index].removeClass('fixed');
+		measurement_status_fields[slider_index].html((current_language == 'english') ? 'PREDICTED' : 'ERWARTET');
+		update_reset_button();
+	}
+	
+	function update_reset_button() {
+		fixed_slider_count = 0;
+		for (var i = 0; i < number_of_sliders; i++) {
+			if (measurement_status[i] == 'fixed') { fixed_slider_count++; }
+		}
+		if (fixed_slider_count) { $J('#reset_button').show(); }
+		else { $J('#reset_button').hide(); }
+	}
+	
+	function setSliderValueField(slider_value, measurement_value_field, measurement_field_name) {
+		if (measurement_field_name == 'weight') {
+			measurement_value_field.text( Math.round(conversion_factor['weight']*slider_value) );
+		} else if (measurement_field_name == 'exercise' ) {
+			measurement_value_field.text( Math.round( slider_value/3.0 ) );
+		} else if (measurement_field_name == 'age' ) {
+			measurement_value_field.text( Math.round( slider_value ) );
+		} else {
+			measurement_value_field.text( Math.round(conversion_factor['height']*slider_value) );
+		}
+	}
+	
+	function sliderUpdateFunction(measurement_slider, measurement_value_field, measurement_field_name, measurement_field_index, animate) {
+		return function() {
+			if (! animate) { slide_counters[measurement_field_index] += 1; }
+			var slider_value = measurement_slider.slider( "value" );
+			setSliderValueField(slider_value, measurement_value_field, measurement_field_name);
+			cached_slider_values[measurement_field_index] = slider_value;
+			if (model_loader.current_model) {
+				if (measurement_field_name == 'weight') {
+					var value = Math.pow(slider_value, 1/3);
+				} else if (measurement_field_name == 'exercise' ) {
+					var value = slider_value;
+				} else if (measurement_field_name == 'age' ) {
+					var value = slider_value;
+				} else {
+					var value = 10*slider_value;
+				}
+//				console.log(slide_counters)
+				if (slide_counters[measurement_field_index] > 3) {
+					if (animate) { slide_counters[measurement_field_index] = 0; }
+					updateMeasurementsAndModel(measurement_field_index, value, false);
+				} else {
+					if (animate) { slide_counters[measurement_field_index] = 0; }
+					updateMeasurementsAndModel(measurement_field_index, value, animate);
+				}
+			}
+		}
+	}
+	
+	function sliderStartsFunction(i) {
+		return function() {
+			console.log(i + ' starts')
+			slide_counters[i] = 0;
+		}
+	}
+	
+	function sliderStopsFunction(i) {
+		return function() {
+			console.log(i + ' stops')
+		}
+	}
+
+	var ordering_of_data = [ 'waist', 'chest', 'hips', 'height', 'weight', 'inseam', 'exercise' ];
+//	var ordering_of_data = [ 'waist', 'chest', 'hips', 'height', 'weight', 'inseam', 'age' ];
+	
+//	var min_values = { 'height': 110, 'weight': 30, 'age': 18, 'waist' : 50, 'inseam' : 50, 'chest' : 60, 'hips' : 60, 'exercise': 0 };
+//	var max_values = { 'height': 220, 'weight': 250, 'age': 90, 'waist' : 200, 'inseam' : 140, 'chest' : 200, 'hips' : 220, 'exercise': 10 };
+//	var initial_values = { 'height' : 164, 'weight': 65, 'age': 40, 'waist' : 77, 'inseam' : 75, 'chest' : 94, 'hips' : 103, 'exercise': 4 };
+
+	var min_values = {};
+	var max_values = {};
+	var initial_values = {};
+	var stds = {};
+	var order_by_measurement = {};	
+	for (var i = 0; i < ordering_of_data.length; i++) { order_by_measurement[ordering_of_data[i]] = i; }
+	var measurement_slider_divs = null;	
+	var number_of_sliders = null;
+	var measurement_sliders = null;
+	var measurement_names = null;
+	var measurement_value_fields = null;
+	var measurement_status_fields = null;
+	var measurement_status = null;
+	var cached_slider_values = null;
+	var fixed_slider_count = 0;
+	var slide_counters = null;
+	
+	var mu = null;
+	var sigma = null;
+	var conditional_multivariate_gaussian = null;
+	
+	function setupSliders() {
+		for (var i = 0; i < ordering_of_data.length; i++) {
+			order_by_measurement[ordering_of_data[i]] = i;
+			initial_values[ordering_of_data[i]] = model_loader.means[i]/10.0;
+			stds[ordering_of_data[i]] = Math.sqrt(model_loader.covariance[i][i])/10.0;
+		}
+		initial_values['age'] = 10*initial_values['age'];
+		initial_values['exercise'] = 10*initial_values['exercise'];
+		initial_values['weight'] = 10*initial_values['weight'];
+		stds['age'] = 10*stds['age'];
+		stds['exercise'] = 10*stds['exercise'];
+		stds['weight'] = 10*stds['weight'];
+    
+		for (var i = 0; i < ordering_of_data.length; i++) {
+			min_values[ordering_of_data[i]] = Math.round(initial_values[ordering_of_data[i]] - 4*stds[ordering_of_data[i]]);
+			min_values[ordering_of_data[i]] = Math.max(min_values[ordering_of_data[i]], 0)
+			max_values[ordering_of_data[i]] = Math.round(initial_values[ordering_of_data[i]] + 5*stds[ordering_of_data[i]]);
+		}
+    
+		initial_values['weight'] = Math.pow(initial_values['weight'], 3);
+		min_values['weight'] = Math.pow(min_values['weight'], 3);
+		max_values['weight'] = Math.pow(max_values['weight'], 3);
+		max_values['exercise'] = 60;
+		number_of_sliders = measurement_slider_divs.length;
+		measurement_sliders = Array(number_of_sliders)
+		measurement_value_fields = Array(number_of_sliders);
+		measurement_names = Array(number_of_sliders);
+		measurement_value_fields = Array(number_of_sliders);
+		measurement_status_fields = Array(number_of_sliders);
+		measurement_status = Array(number_of_sliders);
+		cached_slider_values = Array(number_of_sliders);
+		scale_factors = Array(number_of_sliders);
+		slide_counters = Array(number_of_sliders);
+		
+		mu = Array(number_of_sliders);
+		sigma = Array(number_of_sliders);
+		var unconditioned_indices = Array(number_of_sliders);
+		var conditioned_indices = [];
+		var conditioned_values = [];
+		
+		for (var i = 0; i < number_of_sliders; i++) {
+			var measurement_name = measurement_slider_divs[i].id.replace('-measurement-slider','');
+			var measurement_slider = $J(measurement_slider_divs[i])
+			var measurement_value_field = $J('#' + measurement_name + '-slider-value');
+			var measurement_status_field = $J('#' + measurement_name + '-slider-status');
+			measurement_names[i] = measurement_name;
+			measurement_sliders[i] = measurement_slider;
+			measurement_value_fields[i] = measurement_value_field;
+			measurement_status_fields[i] = measurement_status_field;
+			measurement_slider.slider({
+				orientation: "horizontal",
+				range: "min",
+				min: min_values[measurement_name],
+				max: max_values[measurement_name],
+				value: initial_values[measurement_name],
+				start: sliderStartsFunction(i),
+				stop: sliderStopsFunction(i),
+				slide: sliderUpdateFunction(measurement_slider, measurement_value_field, measurement_name, i, false),
+				change: sliderUpdateFunction(measurement_slider, measurement_value_field, measurement_name, i, true),
+				animate: 300,
+				disabled: true
+			});
+			data_index = order_by_measurement[measurement_name];
+			mu[i] = model_loader.means[data_index];
+			unconditioned_indices[i] = i;
+			sigma[i] = Array(number_of_sliders);
+		}
+		for (var i = 0; i < number_of_sliders; i++) {
+			var row_data_index = order_by_measurement[measurement_names[i]];
+			for (var j = 0; j < number_of_sliders; j++) {
+				var column_data_index = order_by_measurement[measurement_names[j]];
+				sigma[i][j] = model_loader.covariance[row_data_index][column_data_index];
+			}
+		}
+		conditional_multivariate_gaussian = new ConditionalMultivariateGaussian(mu, sigma, unconditioned_indices, conditioned_indices, conditioned_values);
+		
+		for (var i = 0; i < number_of_sliders; i++) {
+			mark_slider_as_unfixed(i)
+			measurement_sliders[i].slider( "value", initial_values[measurement_names[i]] );
+			cached_slider_values[i] = initial_values[measurement_names[i]];
+			scale_factors[i] = 0;
+		}
+		fixed_slider_count = 0;
+	}
+
+		var model = null;
+		var modelViewer = null;
+		var names = ['Height', 'Weight', 'Age', 'Chest', 'Waist', 'Hips', 'Inseam', 'Exercise'];
+		names = ['Height', 'Weight', 'Age', 'Chest', 'Waist', 'Hips', 'Inseam' ];
+		
+		names = ['Height', 'Weight', 'Chest', 'Waist', 'Hips', 'Inseam', 'Exercise'];
+		
+		var model_color = [0.5,0.65,1,1];
+		var startViewer = function(canvas, model) {
+			if (modelViewer) modelViewer.disconnect();
+			model_loader.current_model.setColor(model_color);
+			try {
+				var gl = canvas.getContext("experimental-webgl");
+			} catch (e) {
+				consle.log('Browser does not support WebGl');
+			}
+			if (!gl) {
+				$J("#overlay").html("<h1>Sorry!</h1><h3>To view this site, please download the latest version of <a href='http://www.google.com/chrome'>Chrome</a> or <a href='http://www.mozilla.org/firefox/'>Firefox</a>.</h3>")
+			}
+			controller = new CameraController(canvas);
+			modelViewer = new ModelViewer([model], canvas, controller);
+		};
+
+		var model_loader = undefined;
+		var loadMesh = function (event) {
+			shapeinfo_url = 'shapedata/' + gender + '/' + category + '/shapeinfo.js';
+			shape_data_directory = 'shapedata/' + gender + '/' + category + '/';
+			model_loader = new ModelLoader(shapeinfo_url, shape_data_directory, startViewer);
+		};
+	</script>
+	<script type="text/javascript">
+
+	  var _gaq = _gaq || [];
+	  _gaq.push(['_setAccount', 'UA-4719595-3']);
+	  _gaq.push(['_trackPageview']);
+
+	  (function() {
+	    var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
+	    ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+	    var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
+	  })();
+
+	</script>
+</head>
+<body>
+	<div class="demo">
+		<div id="overlay">
+			<h1>Loading body data...</h1>
+                        <h3>Note: WebGL is required (Google Chrome Recommended)</h3>
+		</div>
+		<div id="popup" style="display: none;">
+			<div id="popup_header"><a href="#" onClick="$J('#popup').hide(); return false;">CLOSE X</a></div>
+			<div id="popup_content"></div>
+		</div>
+		<div id="header">
+			<div id='german_button' class='language_button'><a href="#" onClick="current_language = setLanguage('german'); return false;">Deutsch</a></div>
+			<div id='english_button' class='language_button' style="display: none"><a href="#" onClick="current_language = setLanguage('english'); return false;">English</a></div>
+			<script>
+				var current_language = 'english';
+			</script>
+			<h1 id='main-title'>Male Body Visualizer</h1>
+			<script>
+				var gender = 'male';
+				var category = 'all_' + gender;
+			</script>
+			<h3><a id='switch_gender_link' href="female.html">(switch to female)</a></h3>
+		</div>
+		<div id="body-column">
+			<div id='body-viewer-div'>
+				<canvas id='preview-viewer' width='500' height='700'></canvas>	
+				<canvas id='body-viewer' style="display: none;" width='500' height='700'></canvas>
+			</div>
+			<div id="color-slider-box">
+				<div id="color-slider"></div>
+			</div>
+			<script>
+				var color_slider = null;
+				$J(function () {
+					color_slider_callback = function() {
+						return function(hex, r, g, b) {
+							var model_color = [this.r/255, this.g/255, this.b/255, 1];
+							if (model_loader && model_loader.current_model) { model_loader.current_model.setColor(model_color); refreshModel(); }
+						}
+					}();
+					color_slider = new ColorSlider("color-slider", color_slider_callback);
+					color_slider.update();
+				});
+				
+				var body_canvas  = $('body-viewer');
+				var preview_canvas  = $('preview-viewer');
+				$J(loadMesh);
+			</script>
+		</div>
+		
+		<div id="sliders-column">
+			<div id="slider-row-template" style="display:none;">
+				<div class="slider-row" id="_string1_-slider-row">
+					<div class="slider-label-div" id="_string1_-label-div">
+						<span class="slider-label" id="_string1_-slider-label">_string2_: </span>
+					</div>
+					<div class="slider-value-div" id="_string1_-slider-value-div">
+						<span class="slider-value" id="_string1_-slider-value">&nbsp;</span>
+					</div>
+					<div class="slider-units-div" id="_string1_-slider-units-div">
+						<span class="slider-units" id="_string1_-slider-units">inches</span>
+						<span class="slider-status" id="_string1_-slider-status"></span>
+						<span class="slider-instructions" id="_string1_-slider-instructions">
+							<a href="#" onClick='show_instructions("_string2_"); return false;'>(?)</a>
+						</span>
+					</div>
+					<div class="measurement-slider" id="_string1_-measurement-slider"></div>
+				</div>
+			</div>
+			
+			<div id="sliders" style></div>
+			<script>
+				parent_element = $('sliders');
+				template_element = $('slider-row-template');
+				for (var i = 0; i < names.length; i++) {
+					addElementFromTemplate(parent_element, template_element, ['_string1_','_string2_'], [names[i].toLowerCase(), names[i]]);
+				}
+				$J('#age-slider-units').html('years');
+				$J('#weight-slider-units').html('pounds');
+				$J('#exercise-slider-units').html('hours/week');
+				measurement_slider_divs = $J('#sliders .measurement-slider');
+			</script>
+			<div style="height: 40px; clear:both;">
+				<div id='reset_button' style="display: none"><a href="#" onClick="reset_all_sliders(); return false;">RESET ALL MEASUREMENTS</a></div>
+			</div>
+			<div id="toggle_units_button" class="language_button"><a href="#" onClick="toggle_units(); return false;">Switch Units</a></div>
+			<br/>
+		</div>
+	</div>
+	<div id='footer'>
+		<p id='info'><a href="http://www.is.mpg.de/ps/">MPI IS Perceiving Systems Department</a></p>
+		<p id='copyright'>&copy; 2011, Copyright Max Planck Gesellschaft</p>
+	</div>
+</body>
+</html>
+	
+
