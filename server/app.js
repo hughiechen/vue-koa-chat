@@ -20,6 +20,7 @@ const users = require('./routes/users')
 const inviteMyfriend = require('./routes/inviteMyfriend')
 const setting = require('./routes/setting')
 const friendsCircle = require('./routes/friendsCircle')
+const groupNews = require('./routes/groupNews')
 
 // async function selectAllData( ) {
 //   let sql = 'SELECT * FROM h3'
@@ -139,8 +140,7 @@ app.use(users.routes(), users.allowedMethods())
 app.use(inviteMyfriend.routes(), inviteMyfriend.allowedMethods())
 app.use(setting.routes(), setting.allowedMethods())
 app.use(friendsCircle.routes(), friendsCircle.allowedMethods())
-
-
+app.use(groupNews.routes(), groupNews.allowedMethods())
 
 // error-handling
 app.on('error', (err, ctx) => {

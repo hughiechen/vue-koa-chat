@@ -32,10 +32,10 @@ export const chatmore={
 	// 	"chatSvgid":"#banktransfer",
 	// 	"chatSvgname":"转账"
 	// },
-	{
-		"chatSvgid":"#icon-icon_naturalpersons",
-		"chatSvgname":"名片"
-	},
+	// {
+	// 	"chatSvgid":"#icon-icon_naturalpersons",
+	// 	"chatSvgname":"名片"
+	// },
 	{
 		"chatSvgid":"#icon-shop",
 		"chatSvgname":"商家"

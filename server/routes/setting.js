@@ -3,6 +3,8 @@ const { query } = require('../utils/async-db')
 
 router.prefix('/teamchat.html')
 
+
+
 // 获取群信息
 router.get('/Group/setting', async function (ctx, next) {
     
@@ -40,7 +42,7 @@ router.get('/Group/setting', async function (ctx, next) {
 
 })
 
-
+// 处理设置请求
 router.post('/Group/setting',async (ctx,next)=>{
   const queryData= ctx.request.body
   console.log(queryData)
@@ -183,7 +185,6 @@ router.post('/Group/setting',async (ctx,next)=>{
     let teamId=JSON.parse(queryData.teamId)
     let TeamName=queryData.TeamName
     
-
     let sql = `UPDATE hs_sz_yi_teams SET teamName='${TeamName}' WHERE id=${teamId}`
     
     await query(sql).then(res=>{
@@ -239,9 +240,44 @@ router.post('/Group/setting',async (ctx,next)=>{
     
       }
     }
+  }else if(op=='deleteGroup'){
+    // 删除群
+    let { teamId,userId }=ctx.request.body
+
+    // 删除群函数
+    async function deleteGroup (ctx,next){
+      let sql =`DELETE t.*,m.* FROM hs_sz_yi_teams as t LEFT JOIN hs_sz_yi_teams_member as m ON t.id=m.teamId WHERE t.id =${teamId}`
+
+      await query(sql)
+    }
+
+    await deleteGroup().then(res=>{
+      ctx.body = {
+        status:1,
+        msg:"已删除群！"
+      }
+    })
+  }else if(op=="exitGroup"){
+    // 退出群
+    let { teamId,userId }=ctx.request.body
+
+    // 退出群函数
+    async function deleteGroup (ctx,next){
+      let sql =`DELETE FROM hs_sz_yi_teams_member WHERE teamId=${teamId} and member_id =${userId}`
+
+      await query(sql)
+    }
+
+    await deleteGroup().then(res =>{
+      ctx.body = {
+        status:1,
+        msg:"已退出群！"
+      }
+    })
   }
 
 
 
 })
+
 module.exports = router

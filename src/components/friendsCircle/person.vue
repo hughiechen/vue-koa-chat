@@ -1,6 +1,6 @@
 <template>
 	<section class="child_page">
-		<head-top crossover="朋友圈" canIpost="true" clickrefresh="friendcicle" @refreshPage="freshPage"></head-top>
+		<head-top crossover="朋友圈" :canIpost="userId === hostId" clickrefresh="friendcicle" @refreshPage="freshPage"></head-top>
 		
 		<section class="friend_wipe" ref="friend">
 			<section class="friend">
@@ -11,7 +11,7 @@
 					<div :class="{shoowimg : !imagestatus}" @click="exportInput">
 						<img :src="newImg" id="imgSrc" ref="imgSrc" class="imgSrc"  />
 					</div>
-					<div class="themetext" :class="{shoowimg : imagestatus}">轻触更换主题照片</div>
+					<div v-if="userId === hostId" class="themetext" :class="{shoowimg : imagestatus}">轻触更换主题照片</div>
 					<div class="personImg">
 						<div class="personame">
 							{{userInfoData.realname}}
@@ -22,10 +22,10 @@
 					</div>
 				</div>
 
-				<div class="coverinput" :class="{shoowinput : afterclcik}">
+				<div v-if="userId === hostId" class="coverinput" :class="{shoowinput : afterclcik}">
 					<div class="coverinputbg" @click="hideIput"></div>
-					<div class="coverfiletext">
-						<div class="wipeinput">
+					<div class="coverfiletext" >
+						<div class="wipeinput" >
 							更换相册封面
 							<input type="file" class="coverfile" id="input_file" @change="themeUp"/>
 						</div>
@@ -138,7 +138,7 @@
 	import { Toast } from 'mint-ui'
 
 	export default{
-		name:'friendsCircle',
+		name:'person',
 		data(){
 			return{
 				filevalue:'',
@@ -159,7 +159,8 @@
 				userId:0,
 				userHeader:'http://ww1.sinaimg.cn/mw690/0071KjPhgy1frt6tdb6qbj30j60aswfs.jpg',			//用户头像
 				imagestatus:false,
-				newImg:''
+				newImg:'',
+				hostId:0
 			}
 		},
 		beforeDestroy(){
@@ -167,11 +168,16 @@
 				clearTimeout(this.timers); 
 		},
 		mounted(){
-			// this.userInfoData=this.userInfo;
-			// this.userHeader=imgurl + this.userInfoData.avatar
-			const userId=getCookie('userId');
+			// 通过路由参数获取用户id
+			const userId= this.$route.params.userId;
+			// 获取缓存的登录人id
+			this.hostId = getCookie('userId');
 			this.userId=userId      
-			this.$store.commit('getUserId', userId);
+			console.log(this.hostId)
+
+			// 获取朋友圈数据
+			this.getCircle(userId)
+
 			//上传图片并展示图片（无剪裁功能）
 			new uploadPreview({
 				UpBtn: "input_file",
@@ -188,7 +194,6 @@
 				}
 			})
 
-			this.getCircle(userId)
 
 			// //获取朋友圈数据
 			// circle().then((res) => {
@@ -209,14 +214,14 @@
 
 		methods:{
 			...mapMutations([
-          "SAVE_THEMIMG", "SAVE_MESSAGE",
-      ]),
-      ...mapActions([
-        "getUserInfo",
-      ]),
+				"SAVE_THEMIMG", "SAVE_MESSAGE",
+			]),
+			...mapActions([
+				"getUserInfo",
+			]),
 			
 			// 输入内容
-      enterThing(){
+			enterThing(){
 				this.commentSend()
 			},
 			exportInput(){
@@ -253,9 +258,7 @@
 				animate(getBody,{scrollTop:0})
 			},
 			personCircle(){
-				//点击头像进入个人朋友圈页面
-				
-				this.$router.push(`/friendsCircle/person/${this.userId}`);
+				return
 			},
 			supportThing(item){//点赞
 				this.likediv=true;
@@ -342,7 +345,7 @@
 							{
 								params:{
 									userId,
-									op:'getCircle'
+									op:'getMyCircle'
 								}	
 							}
 
@@ -601,7 +604,7 @@
 								.button_right{
 									margin-top:0.6826666667rem;
 									position: relative;
-									@include widthHeight(1rem,1rem);
+									@include widthHeight(0.9386666667rem,0.64rem);
 									.button_svg{
 										display:block;
 										@include widthHeight(100%,100%);

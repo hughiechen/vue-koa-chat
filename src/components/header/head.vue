@@ -20,7 +20,7 @@
 
 			</section>
 
-			<section v-if="crossover==='朋友圈'" @click="$router.push('/friendsCircle/postNews')" class="publish flex flex-ver">
+			<section v-if="crossover==='朋友圈'&& canIpost" @click="$router.push('/friendsCircle/postNews')" class="publish flex flex-ver">
 				<svg class="icon" aria-hidden="true">
 						<use xlink:href="#icon-xiangji"></use>
 				</svg>
@@ -111,7 +111,7 @@
 				
 			}
 		},
-		props: ['logoPart', 'crossover', 'searchPart', 'add', 'person', "search", "clickrefresh"],
+		props: ['logoPart', 'crossover', 'searchPart', 'add', 'person', "search", "clickrefresh","canIpost"],
 		created(){
 
 		},

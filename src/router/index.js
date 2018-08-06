@@ -7,6 +7,7 @@ import inviteMyfriend from '../components/inviteMyfriend/inviteMyfriend.vue';
 import teamChatting from '../components/teamChatting/teamChatting.vue';
 import AI from '../components/teamChatting/AI.vue';
 import Group from '../components/teamChatting/Group.vue';
+import position from '../components/teamChatting/position.vue';
 import setting from '../components/teamChatting/setting.vue';
 import changeName from '../components/teamChatting/changeName.vue'
 import inviteNewFriends from '../components/teamChatting/inviteNewFriends.vue'
@@ -14,6 +15,8 @@ import deleteTeamMembers from '../components/teamChatting/deleteTeamMembers.vue'
 
 import friendsCircle from '../components/friendsCircle/friendsCircle.vue';
 import postNews from '../components/friendsCircle/postNews.vue';
+import person from '../components/friendsCircle/person.vue';
+
 
 Vue.use(Router)
 
@@ -67,6 +70,11 @@ const router = new Router({
       component: setting
     },
     {
+      path:'/Group/position',
+      name:'position',
+      component: position
+    },
+    {
       path:'/Group/setting/changeName',
       name:'changeName',
       component: changeName
@@ -93,6 +101,14 @@ const router = new Router({
       path:'/friendsCircle/postNews',
       name:'postNews',
       component: postNews,
+      meta: {
+          title: '云粉圈'
+      }
+    },
+    {
+      path:'/friendsCircle/person/:userId',
+      name:'person',
+      component: person,
       meta: {
           title: '云粉圈'
       }

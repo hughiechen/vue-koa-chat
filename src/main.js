@@ -9,8 +9,35 @@ import store from './vuex/'
 
 import axios from 'axios'
 import VueAxios from 'vue-axios'
-import { Cell,Checklist, IndexList, IndexSection,Popup,Search } from 'mint-ui'
+import { Cell,Checklist, IndexList, IndexSection,Popup,Search,Badge } from 'mint-ui'
 import getUrl from './common/js/getUrl'
+
+// 引入高德地图组件
+import VueAMap from 'vue-amap'
+Vue.use(VueAMap);
+VueAMap.initAMapApiLoader({
+  key: '160cab8ad6c50752175d76e61ef92c50',
+  plugin: ['AMap.Autocomplete', 'AMap.PlaceSearch', 'AMap.Scale', 'AMap.OverView', 'AMap.ToolBar', 'AMap.MapType', 'AMap.PolyEditor', 'AMap.CircleEditor','Geolocation','Geocoder'],
+  // 默认高德 sdk 版本为 1.4.4
+  v: '1.4.4'
+});
+
+// 引入图片预览组件
+import gallery from 'img-vuer'
+Vue.use(gallery)
+// import picturePreview from 'vue-photo-preview'
+// var options={
+//     fullscreenEl:false //关闭全屏按钮
+// }
+// import 'vue-photo-preview/dist/skin.css'
+
+// Vue.use(picturePreview)
+
+// const picturePreviewoptions = {
+//     fullscreenEl:false //关闭全屏按钮
+// }
+// Vue.use(picturePreview,picturePreviewoptions)
+
 
 import 'mint-ui/lib/style.css'
 
@@ -20,6 +47,7 @@ Vue.component(IndexList.name, IndexList);
 Vue.component(IndexSection.name, IndexSection);
 Vue.component(Popup.name, Popup);
 Vue.component(Search.name, Search);
+Vue.component(Badge.name, Badge);
 
 // 本地化，中文时间显示
 moment.locale('zh-cn');

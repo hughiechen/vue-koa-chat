@@ -51,7 +51,7 @@
     },
     methods:{
       ...mapMutations([
-          "getTeamId"
+          "getTeamId","getTeamName"
       ]),
       confirmInvite(userId){
 
@@ -80,14 +80,15 @@
         )
         .then(res=>{
             if(res.data.status===1){
-              const teamId=res.data.result.teamId
-              console.log(res,teamId)
+              const {teamId,teamName}=res.data.result
+              console.log(res,teamId,teamName)
 
               Toast({
                 message: res.data.result.msg,
                 duration: 2000
               });
               this.getTeamId(teamId)
+              this.getTeamName(teamName)
               setTimeout(() => {
                 this.$router.push({
                   path:`/Group`
@@ -98,7 +99,11 @@
 
       },
       getMyfriend(userId){
-        this.axios.get(`/teamchat.html/inviteMyfriend`).then(res=>{
+        this.axios.get(`/teamchat.html/inviteMyfriend`,
+          {
+            params:{userId}
+          }
+        ).then(res=>{
           console.log(res)
           if(res.data.status===1){
             res.data.result.forEach(v=>{
@@ -144,11 +149,11 @@
     height:3rem;
     padding:0 1rem;
     line-height: 3rem;
-    background:#ffc3c3;
+    background:#373B3E;
     .back{
       display:block;
       height:100%;
-      font-size:1.1rem;
+      font-size:1rem;
       padding: 0 .5rem;
       color:white;
     }

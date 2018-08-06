@@ -54,7 +54,7 @@ import {mapState, mapActions, mapMutations} from 'vuex'
         newTeamName:'',
         postNews:'',
         imgsUrl:[],
-        imgForm:{}
+        imgForm:null
       }
     },
     computed:{
@@ -66,7 +66,7 @@ import {mapState, mapActions, mapMutations} from 'vuex'
       this.newTeamName=this.teamName
 
       console.log(this.userId)
-      
+      console.log(this.imgForm)
     },
     methods:{
       ...mapMutations([
@@ -147,9 +147,17 @@ import {mapState, mapActions, mapMutations} from 'vuex'
           return;
         }
 
-        this.imgForm.append("op","postnews")
-        this.imgForm.append("postNews",this.postNews)
-        this.imgForm.append("userId",this.userId)
+        if(this.imgForm){
+          this.imgForm.append("op","postnews")
+          this.imgForm.append("postNews",this.postNews)
+          this.imgForm.append("userId",this.userId)
+        }else{
+          this.imgForm=new FormData()
+          this.imgForm.append("op","postnews")
+          this.imgForm.append("postNews",this.postNews)
+          this.imgForm.append("userId",this.userId)
+        }
+        
         
         // 发送图片数据
         this.axios({
@@ -170,7 +178,7 @@ import {mapState, mapActions, mapMutations} from 'vuex'
               this.$router.push ({
                 path:`/friendsCircle`
               })
-            }, 2000);
+            }, 2000)
             
           }
 

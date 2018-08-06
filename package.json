@@ -12,6 +12,7 @@
   "dependencies": {
     "axios": "^0.16.2",
     "body-parser": "^1.17.1",
+    "img-vuer": "^0.13.0",
     "koa": "^2.5.1",
     "mint-ui": "^2.2.13",
     "moment": "^2.18.1",
@@ -21,7 +22,9 @@
     "request-promise": "^4.2.0",
     "socket.io": "^1.7.3",
     "vue": "^2.2.6",
+    "vue-amap": "^0.5.8",
     "vue-axios": "^2.0.2",
+    "vue-photo-preview": "^1.0.9",
     "vue-router": "^2.3.1",
     "vuex": "^2.3.1"
   },

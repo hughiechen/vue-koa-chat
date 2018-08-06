@@ -25,7 +25,8 @@
       <div @click.stop.prevent="isShowEmoji=false" ref="chattingContent" class="chatting-content">
 
         <div v-for="(item, index) in msgs" v-if="item.teamId == teamId " v-bind:key="index">
-          <div v-if="item.self" class="chatting-item self clearfix">
+          <!-- 如果是自己发送的消息 -->
+          <div v-if="item.from==name" class="chatting-item self clearfix">
             <div class="msg-date">
               {{ item.date }}
             </div>
@@ -42,6 +43,7 @@
             
           </div>
 
+          <!-- 如果是别发送的消息 -->
           <div v-else class="chatting-item other clearfix">
 
             <div class="msg-date">
@@ -165,12 +167,13 @@
 	import {mapState, mapActions, mapMutations} from 'vuex'
 
 	import '@/common/style/swiper.min.css'
-
+  import { Indicator } from 'mint-ui'
   export default {
     name: 'Group',
     data(){
       return {
-        msgs: localStorage.msgs_group && JSON.parse(localStorage.msgs_group) || [],
+        // msgs: localStorage.msgs_group && JSON.parse(localStorage.msgs_group) || [],
+        msgs:[],
         inputContent: '',
         oContent: {},
         oTextarea: {},
@@ -182,37 +185,50 @@
 				chatData:{}
       }
     },
-    watch: {
-      msgs(val) {
-        localStorage.msgs_group = JSON.stringify(val);
-      }
-    },
+    // watch: {
+    //   msgs(val) {
+    //     // 把聊天信息存入缓存
+    //     localStorage.msgs_group = JSON.stringify(val);
+    //   }
+    // },
     computed: {
-
+      // 从vuex读取数据
       ...mapState([
 				"newImg", "userInfo", "imagestatus","teamName","name","avatarUrl","teamId"
 			])
       
     },
-    // beforeRouteEnter(to, from, next) {
-    //   if (!localStorage.name) {
-    //     next('/')
-    //   } else {
-    //     next();
-    //   }
-    // },
+    // 路由守卫，如果缓存没有名字，就跳转首页
+    beforeRouteEnter(to, from, next) {
+      if (!localStorage.name) {
+        next('/')
+      } else {
+        next();
+      }
+    },
+    created(){
+      Indicator.open({
+        spinnerType: 'snake'
+      });
+    },
     mounted() {
       console.log(this.teamId)
       // this.teamId=this.$route.params.teamId
       // setInterval(() => this.isRedAI = !this.isRedAI, 2500);
       this.oContent = document.querySelector('.chatting-content');
-      this.oContent.scrollTop = this.oContent.scrollHeight;
+      // this.oContent.scrollTop = this.oContent.scrollHeight;
       this.oTextarea = document.querySelector('textarea');
 
+      // 获取群聊信息
+      this.getGroupNews()
+
+      // 注册join事件
       socket.emit('join',this.teamId)
       
+      // 注册上线事件
       socket.emit('online', this.$store.state.name);
 
+      // 监听上线事件
       socket.on('online', (name) => {
 
         if (!name) {
@@ -225,20 +241,38 @@
         this.oContent.appendChild(oOnline);
         this.oContent.scrollTop = this.oContent.scrollHeight;
 
-
       });
+
+      // 加入房间
+      socket.on('joinRoom',(roomID)=>{
+        console.log("加入了"+roomID)
+      })
 
       // 接收群聊消息
       socket.on('receiveGroupMsg', (data , roomID) => {
         console.log(data)
         this.msgs.push(data);
+
+        // 接受到群聊信息，说明已读，则发送请求，改变消息状态为已经读取
+        this.axios
+          .get('/teamchat.html/myTeam/changeReadStatus',
+            {
+              params:{
+                teamId:roomID,
+                userId:this.$store.state.userId
+              }
+            }
+          ).then(res=>{
+            console.log("已读！")
+        })
+
+        // 内容区域置底部
         setTimeout(() => {
           this.oContent.scrollTop = this.oContent.scrollHeight;
         }, 0);
       });
 
-      this.oContent.scrollTop = this.oContent.scrollHeight;
-
+      // 底部图标选择项
       chatData().then((res) => {
 				this.chatData=res;
 			}).then(()=>{
@@ -281,15 +315,18 @@
         // previewer.preview();
 
       // },
+      // 显示底部
 			bottomShow(){
 				this.clickmore=true;
-			},
+      },
+      // 隐藏底部
 			bottomHide(){
 				this.clickmore=false;
 			},
 			inputBottomHide(){
 				this.clickmore=false;
-			},
+      },
+      // 发送信息
       send() {
         this.isShowEmoji = false;
         this.light=!this.light
@@ -297,12 +334,14 @@
           return;
         } else {
           socket.emit('sendGroupMsg', {
-            date: this.moment().format('YYYY-MM-DD HH:mm:ss'),
+            // date: this.moment().format('YYYY-MM-DD HH:mm:ss'),
+            date:Date.parse(new Date()),
             loc: localStorage.addr,
             from: `${localStorage.name}`,
             content: this.inputContent,
             avatarUrl: this.avatarUrl,
-            teamId:this.teamId
+            teamId:this.teamId,
+            
           },this.teamId);
 
           this.msgs.push({
@@ -310,19 +349,21 @@
               loc: localStorage.addr,
               from: `${localStorage.name}`,
               content: this.inputContent,
-              self: true,
+              // self: true,
               avatarUrl: this.avatarUrl,
               teamId:this.teamId
-          });
+          })
+
           this.inputContent = '';
           setTimeout(() => this.oContent.scrollTop = this.oContent.scrollHeight, 0);
+          Indicator.close()
         };
       },
-
+      // 显示表情
       showEmoji(flag) {
         this.isShowEmoji = flag;
       },
-
+      // 插入文本
       insertText(str) {
         str = str + ` `;
         const oTextarea = this.$refs.textarea;
@@ -349,6 +390,7 @@
         this.newLine();
       },
 
+      // 文字输入换行
       newLine() {
         setTimeout(() => this.oTextarea.scrollTop = this.oTextarea.scrollHeight, 0);
         console.log(11)
@@ -422,15 +464,27 @@
           console.log('必须有文件')
         }
       },
+
+      // 底部聊天选项
       clickMoreOptions(v) {
         if(v===0){
           this.addPhoto()
+        }else if(v===1){
+          
+          this.$router.push('/Group/position')
+
+        }else if(v===2){
+          window.location.href="http://suphhk.com/app/index.php?i=1&c=entry&p=index&do=member&m=sz_yi"
         }
       },
+
+      // 添加图片
       addPhoto(){
         const file = document.getElementById('inputFile')
         file.click()
       },
+
+      // 跳转设置页面，
       gotoSetting(){
 
         const teamId=this.teamId
@@ -442,6 +496,32 @@
           }
         })
 
+      },
+
+      // 获取群聊信息
+      async getGroupNews(){
+        // 发送请求
+        const GroupNews= await this.axios
+                              .get('/teamchat.html/Group',
+                                  {
+                                      params:{
+                                          teamId:this.teamId,
+                                          op:"getGroupNews"
+                                      }
+                                  }
+                              )
+
+        // 把消息保存在变量，渲染数据
+        if(GroupNews.data.state){
+          this.msgs=GroupNews.data.roomDataList.map(v=>{
+            v.date = this.moment(v.date).format('YYYY-MM-DD HH:mm:ss')
+            return v
+          })
+          // 聊天内容置于底部
+          setTimeout(() => this.oContent.scrollTop = this.oContent.scrollHeight, 0);
+          setTimeout(() => Indicator.close(), 1000);
+
+        }
       }
     }
   }
@@ -478,7 +558,7 @@
       width: 100%;
       position:fixed;
       top:0;
-      background-color: $blue;
+      background-color:#373B3E;
       color: white;
       padding-left: 10px;
       padding-right: 15px;
@@ -514,6 +594,7 @@
         }
         h2{
           color:white;
+          font-size: 1rem;
         }
       }
 

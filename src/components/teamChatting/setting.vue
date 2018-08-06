@@ -45,9 +45,15 @@
             </div> -->
         </div>
         <div class="weui-cells">
+
             <div class="weui-cell weui-cell_switch">
                 <div class="weui-cell__bd">消息免打扰</div>
                 <div class="weui-cell__ft"><input type="checkbox" class="weui-switch" ></div>
+            </div>
+
+            <div class="weui-cell">
+                <div class="weui-cell__bd">清空聊天记录</div>
+                <div class="weui-cell__ft"></div>
             </div>
             <!-- <div class="weui-cell weui-cell_access">
                 <div class="weui-cell__bd">我在本群的昵称</div>
@@ -78,12 +84,13 @@
                 <div class="weui-cell__ft"></div>
             </div>
         </div> -->
-        <span class="weui-btn weui-btn_warn" style="margin-top: 15px;padding: 0 20px; width:90%;">删除并退出</span>
+        <span class="weui-btn weui-btn_warn" style="margin-top: 15px;padding: 0 20px; width:90%;" @click="deleteGroup">{{deleteContent}}</span>
 
     </div>
 </template>
 <script>
 import {mapState, mapActions, mapMutations} from 'vuex'
+import { Toast } from 'mint-ui'
 
     export default {
         name:'setting', 
@@ -94,7 +101,8 @@ import {mapState, mapActions, mapMutations} from 'vuex'
                 teamMembers:[],
                 options:[],
                 chosenFriends:[],
-                popupVisible:false
+                popupVisible:false,
+                deleteContent:''
             }
         },
         computed:{
@@ -105,9 +113,15 @@ import {mapState, mapActions, mapMutations} from 'vuex'
         mounted() {
             console.log(this.teamId,this.teamHostId,this.userId)
             // this.teamId=this.$route.params.teamId
+            if(this.teamHostId==this.userId){
+                this.deleteContent="解散该群"
+            }else{
+                this.deleteContent="删除并退出"
+            }
             this.getMemberInfo(this.teamId)
         },
         methods:{
+            // 获取群成员信息
             getMemberInfo(teamId){
                 this.axios
                     .get('/teamchat.html/Group/setting',
@@ -128,8 +142,46 @@ import {mapState, mapActions, mapMutations} from 'vuex'
 
                     })
             },
+            
             deleteM(){
                 this.popupVisible=!this.popupVisible
+            },
+            // 删除或退出群
+            deleteGroup(){
+
+                let op=''
+                // 如果是群主
+                if(this.teamHostId==this.userId){
+                    op="deleteGroup"
+                }else{
+                    // 不是群主
+                    op="exitGroup"
+                }
+
+                const deleteData={
+                    op,
+                    teamId:this.teamId,
+                    userId:this.userId
+                }
+
+                // 发送请求
+                this.axios({
+                    url:'/teamchat.html/Group/setting',
+                    method: 'post',
+                    data:deleteData
+                }).then(res=>{
+                    if(res.data.status===1){
+                        console.log(res.data)
+                        Toast({
+                            message: res.data.msg,
+                            duration: 2000
+                        })
+                        setTimeout(() => {
+                            this.$router.push(`/`)
+                        }, 2000);
+                    }
+                    
+                })
             }
         }
     }

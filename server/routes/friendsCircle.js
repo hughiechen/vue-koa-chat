@@ -40,7 +40,8 @@ router.get('/friendscircle',async (ctx,next)=>{
       return friendsList
     }
 
-    async function getCircle() {
+    // 获取朋友圈数据
+    async function getCircle(userList) {
 
       // 得到好友id
       let friendsList= await getFriends()
@@ -58,22 +59,41 @@ router.get('/friendscircle',async (ctx,next)=>{
       for(let friendId of friendsId){
         // 遍历好友id,查询朋友圈动态表，获取朋友圈动态
         let sql =` select c.*,m.realname,m.avatar from hs_sz_yi_friends_circle as c left join hs_sz_yi_member as m on c.uid=m.id where c.uid=${friendId} order by c.postTime desc `
-
+        
         let circleItem=await query(sql)
         circleList.push(...circleItem)
-
+        
+        // 更新朋友圈的状态
+        let updateSql=`UPDATE hs_sz_yi_friends_circle SET reds=1
+                WHERE uid=${friendId}`
+        await query(updateSql)
       }
-
-      console.log(circleList)  
 
       let newCircleList=[]
       for(let i=0;i<=circleList.length-1;i++){
         // 遍历朋友圈数据，添加评论和修改点赞人
-        
+        let likeState=false
         let likes=circleList[i].likes.split(',')
         likes=likes.filter(ele=>{return ele})//去除数组空值
+        // 看看当前用户有没点赞
+        likes.forEach(likeItem=>{
+          // 点赞的话
+          if(likeItem==userList[0].realname){
+              likeState=true
+          }
 
-        let comment=await getComment(circleList[i])//获取评论·
+        })
+
+        if(likeState){
+          circleList[i].suporthtml="取消"
+        }else{
+          circleList[i].suporthtml="赞"
+        }
+
+        console.log(likes,likeState,circleList[i].suporthtml)  
+
+        let comment=await getComment(circleList[i])
+        //获取评论·
         
         let {imgUrl1,imgUrl2,imgUrl3} = circleList[i]
 
@@ -94,12 +114,106 @@ router.get('/friendscircle',async (ctx,next)=>{
       // console.log(newCircleList)
       return newCircleList
     }
-
-
-
     let userList= await getUserInfo()
 
-    let circleList= await getCircle()
+    let circleList= await getCircle(userList)
+    // console.log(circleList)
+    ctx.body={
+      status:1,
+      result:{
+        msg:'获取朋友圈数据成功！',
+        userList,
+        circleList
+      }
+    }
+  }else if(op=='getMyCircle'){
+    // 获取朋友圈数据
+    let userId=JSON.parse(queryData.userId)
+
+    async function getUserInfo(){
+      // 得到用户信息
+      let sql =`select m.id , m.realname, m.avatar , t.imageUrl from hs_sz_yi_member as m left join hs_sz_yi_friends_theme as t on m.id=t.userId where m.id=${userId}`
+
+      let userList=await query(sql)
+
+      return userList
+    }
+
+    async function getComment(post) {
+      // 查询朋友圈评论表，获取评论
+        let sql =` select commentId,commentName,commentText from hs_sz_yi_friends_circle_commemts where postId=${post.id}`
+        let commentList= await query(sql)
+        return commentList      
+    }
+
+    // 获取朋友圈数据
+    async function getCircle(userList) {
+
+      let friendsId=[]
+      friendsId.push(userId)
+      console.log(friendsId)
+      let circleList=[]
+      for(let friendId of friendsId){
+        // 遍历好友id,查询朋友圈动态表，获取朋友圈动态
+        let sql =` select c.*,m.realname,m.avatar from hs_sz_yi_friends_circle as c left join hs_sz_yi_member as m on c.uid=m.id where c.uid=${friendId} order by c.postTime desc `
+        
+        let circleItem=await query(sql)
+        circleList.push(...circleItem)
+        
+        // 更新朋友圈的状态
+        let updateSql=`UPDATE hs_sz_yi_friends_circle SET reds=1
+                WHERE uid=${friendId}`
+        await query(updateSql)
+      }
+
+      let newCircleList=[]
+      for(let i=0;i<=circleList.length-1;i++){
+        // 遍历朋友圈数据，添加评论和修改点赞人
+        let likeState=false
+        let likes=circleList[i].likes.split(',')
+        likes=likes.filter(ele=>{return ele})//去除数组空值
+        // 看看当前用户有没点赞
+        likes.forEach(likeItem=>{
+          // 点赞的话
+          if(likeItem==userList[0].realname){
+              likeState=true
+          }
+
+        })
+
+        if(likeState){
+          circleList[i].suporthtml="取消"
+        }else{
+          circleList[i].suporthtml="赞"
+        }
+
+        console.log(likes,likeState,circleList[i].suporthtml)  
+
+        let comment=await getComment(circleList[i])
+        //获取评论·
+        
+        let {imgUrl1,imgUrl2,imgUrl3} = circleList[i]
+
+        let eachList=Object.assign({},circleList[i],{
+          likes,
+          comment,
+          postimage:[
+            imgUrl1,
+            imgUrl2,
+            imgUrl3
+          ]
+        })
+
+        newCircleList.push(eachList)
+
+      }
+      
+      // console.log(newCircleList)
+      return newCircleList
+    }
+    let userList= await getUserInfo()
+
+    let circleList= await getCircle(userList)
     // console.log(circleList)
     ctx.body={
       status:1,
@@ -130,7 +244,7 @@ router.post('/friendscircle',async (ctx,next)=>{
     // }
 
     async function postLike(likeArr,suporthtml){
-      let sql = `UPDATE hs_sz_yi_friends_circle SET likes='${likeArr}',suporthtml='${suporthtml}'
+      let sql = `UPDATE hs_sz_yi_friends_circle SET likes='${likeArr}'
                 WHERE id=${postId}`
       let arrList=await query(sql)
       return arrList
@@ -188,6 +302,7 @@ const storage = multer.diskStorage({
         // 生成目标文件夹
         var destDir = 'public/images/';
         // var destDir = 'images/';
+        // var destDir = '/www/web/huang_iiio/public_html/server/public/images'
 
         // 判断文件夹是否存在
         fs.stat(destDir, (err) => {
@@ -213,9 +328,7 @@ const storage = multer.diskStorage({
 })
 
 // 加载配置
-const upload = multer(
-  { storage }
-);
+const upload = multer({ storage });
 
 router.post('/friendscircle/post',upload.array('imgsUrl'),async(ctx,next)=>{
   // 发表动态
@@ -284,8 +397,7 @@ router.post('/friendscircle/post',upload.array('imgsUrl'),async(ctx,next)=>{
       console.log(checkRes)
       if(checkRes.length>0){
         // 如果主题图片已经存在，则更新数据
-        let sql =`UPDATE hs_sz_yi_friends_theme SET imageUrl='${imgsData.filename}'
-                WHERE userId=${userId}`
+        let sql =`UPDATE hs_sz_yi_friends_theme SET imageUrl='${imgsData.filename}' WHERE userId=${userId}`
         let changeThemeRes=await query(sql)
         return changeThemeRes
       }else{

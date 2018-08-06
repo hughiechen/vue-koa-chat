@@ -7,6 +7,16 @@
 var app = require('../app');
 var debug = require('debug')('demo:server');
 var http = require('http');
+const { query } = require('../utils/async-db')
+
+// 引入redis库
+var redis = require('redis');
+var redisStore = require('koa-redis');
+var client = redis.createClient(6379, "127.0.0.1", { password: "124.95redis" });
+// var client = redis.createClient(6379, "127.0.0.1");
+const expire = 60*60
+var options = {client: client, db: 0};
+var store = redisStore(options);
 
 /**
  * Get port from environment and store in Express.
@@ -54,19 +64,22 @@ io.on('connection', (socket) => {
   //   console.log(user + '加入了' + roomID);
   // });
 
-  socket.on('join', function (roomID) {
+  socket.on('join', async (roomID)=> {
 
     // 将用户昵称加入房间名单中
     // if (!roomInfo[roomID]) {
     //   roomInfo[roomID] = [];
     // }
     // roomInfo[roomID].push(user);
-
-    socket.join(roomID);    // 加入房间
-    // 通知房间内人员
-    socket.to(roomID).emit('sys','加入了房间'+roomID);  
+    
+    // 加入房间
+    socket.join(roomID);    
+    
     console.log('加入了'+roomID);
-  });
+    // 通知房间内人员
+    socket.to(roomID).emit('joinRoom',roomID); 
+    
+  })
 
   // 群聊
   // socket.on('sendGroupMsg', function (data) {
@@ -75,10 +88,40 @@ io.on('connection', (socket) => {
   // });
 
   // 接收用户消息,发送相应的房间
-   socket.on('sendGroupMsg', function (data,roomID) {
+   socket.on('sendGroupMsg', async (data,roomID)=> {
+
+    // 保存数据在redis
+    let room=`${roomID}`
+    const newData=JSON.stringify(data)
+
+    // 判断redis是否已存在群id
+    if(store.client.exists(room)){
+      // 存在的话，就添加群信息
+      await store.client.rpush(room, newData)
+    }else{
+      // 否则，不存在的话，就新建列表，存储信息
+      await store.client.lset(room, 0, newData)
+    }
+
+    // 查询群会员
+    let sql = ` select member_id,realname from (hs_sz_yi_teams_member left join hs_sz_yi_member on hs_sz_yi_teams_member.member_id = hs_sz_yi_member.id) left join hs_sz_yi_teams on hs_sz_yi_teams.id=hs_sz_yi_teams_member.teamId where hs_sz_yi_teams_member.teamId=${roomID}  `
+
+    let TeamMembers= await query(sql)
+
+    // 遍历群会员，写入消息已读状态为未读
+    TeamMembers.map(async v=>{
+      if(v.realname== data.from){
+        await store.client.hmset(`user${v.member_id}`, room,1)
+      }else{
+        await store.client.hmset(`user${v.member_id}`, room,0)
+      }
+    })
+    console.log( TeamMembers )
+    
     console.log('发送了'+data,'房间id:'+roomID)
+    // 广播群聊信息
     socket.broadcast.to(roomID).emit('receiveGroupMsg', data,roomID);
-  });
+  })
 
   // 上线
   // socket.on('online', name => {
